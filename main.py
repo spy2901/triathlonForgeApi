@@ -1,24 +1,31 @@
-import time
+# Standard libraries
+import os
+import random
+import smtplib
+import urllib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
-import requests
-from flask import Flask, request, jsonify
+# Third-party libraries
+from flask import Flask, request, jsonify, redirect
+from flasgger import Swagger
 import mysql.connector
 from mysql.connector import Error
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
-# email verification code
-import random
-import smtplib  # Or any email-sending library like `flask-mail`
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-import os
-# from dotenv import load_dotenv
-
-# load_dotenv()
+import requests
 
 app = Flask(__name__)
+swagger = Swagger(app, template={
+    "info": {
+        "title": "My Flask API",
+        "description": "An example API using Flask and Swagger",
+        "version": "1.0.0"
+    }
+})
 # Create an Argon2 PasswordHasher instance
 ph = PasswordHasher()
+
 
 # Database connection function
 def get_db_connection():
@@ -27,12 +34,12 @@ def get_db_connection():
             host='127.0.0.1',  # Replace with your MySQL host
             user='root',  # Replace with your MySQL username
             password='root',  # Replace with your MySQL password
-            database='TriathlonForge',# Replace with your database name
-            port="8889"
+            database='TriathlonForge',  # Replace with your database name
+            port=8889
         )
         return conn
     except Error as e:
-        print(f"Error: {e}")
+        print(f"Database connection Error: {e}")
         return None
 
 
@@ -49,10 +56,56 @@ def receive_data():
     # Process the data as needed
     return jsonify({'message': f'Received input: {input_data}'})
 
+
 #  login register functions
 
 @app.route('/api/login', methods=['POST'])
 def login():
+    """
+        User Login
+        ---
+        tags:
+          - Authentication
+        parameters:
+          - name: body
+            in: body
+            required: true
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  example: user@example.com
+                password:
+                  type: string
+                  example: MySecurePassword
+        responses:
+          200:
+            description: Successful login
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                message:
+                  type: string
+                  example: "Login successful!"
+          401:
+            description: Invalid credentials
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: false
+                message:
+                  type: string
+                  example: "Invalid username or password."
+        """
     # Get the data from the request
     data = request.get_json()
 
@@ -99,6 +152,86 @@ def login():
 
 @app.route('/api/register', methods=['POST'])
 def register():
+    """
+        User Registration
+        ---
+        tags:
+          - Authentication
+        parameters:
+          - name: body
+            in: body
+            required: true
+            schema:
+              type: object
+              required:
+                - first_name
+                - last_name
+                - email
+                - password
+                - birth_year
+              properties:
+                first_name:
+                  type: string
+                  example: John
+                last_name:
+                  type: string
+                  example: Doe
+                email:
+                  type: string
+                  format: email
+                  example: john.doe@example.com
+                password:
+                  type: string
+                  format: password
+                  example: MySecurePassword123
+                bio:
+                  type: string
+                  example: "A passionate triathlete and runner."
+                birth_year:
+                  type: integer
+                  example: 1985
+                strava_profile:
+                  type: string
+                  example: https://www.strava.com/athletes/12345
+                garmin_profile:
+                  type: string
+                  example: https://connect.garmin.com/profile/johndoe
+        responses:
+          200:
+            description: Successful registration
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                message:
+                  type: string
+                  example: "Registration successful. Please verify your email."
+          400:
+            description: Bad Request
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: false
+                message:
+                  type: string
+                  example: "Missing required fields."
+          500:
+            description: Internal Server Error
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: false
+                message:
+                  type: string
+                  example: "Database connection failed."
+        """
+
     data = request.get_json()
 
     # Extract fields
@@ -123,6 +256,7 @@ def register():
     # Connect to the database
     conn = get_db_connection()
     if not conn:
+        print("Database connection failed. Please check configuration.")
         return jsonify({'success': False, 'message': 'Database connection failed.'}), 500
 
     cursor = conn.cursor(dictionary=True)
@@ -154,7 +288,56 @@ def register():
 
 
 def send_email(to_email, verification_code):
-    """Send verification code via email (example with smtplib)."""
+    """
+    Send Verification Email
+
+    Sends an email containing a verification code to the specified email address
+    using SMTP with a styled HTML template.
+
+    Parameters:
+    ----------
+    to_email : str
+        The recipient's email address.
+    verification_code : str
+        The verification code to include in the email.
+
+    Environment Variables:
+    ----------------------
+    - SMTP_SERVER : str
+        The address of the SMTP server.
+    - SMTP_PORT : int
+        The port number of the SMTP server.
+    - SMTP_USER : str
+        The username for the SMTP server authentication.
+    - SMTP_PASSWORD : str
+        The password for the SMTP server authentication.
+
+    Email Content:
+    --------------
+    - Subject: "Verify Your Registration"
+    - HTML Body: Includes a verification code, styled with inline CSS.
+
+    Returns:
+    --------
+    None
+
+    Raises:
+    -------
+    smtplib.SMTPException:
+        If an error occurs during email sending.
+    EnvironmentError:
+        If required environment variables are not set.
+
+    Example:
+    --------
+    >>> send_email("user@example.com", "123456")
+
+    Notes:
+    ------
+    - Ensure that the SMTP environment variables are configured properly.
+    - This function currently uses `smtplib` for email sending and does not support
+      asynchronous operations.
+    """
     SMTP_SERVER = os.getenv("SMTP_SERVER")
     SMTP_PORT = os.getenv("SMTP_PORT")
     SMTP_USER = os.getenv("SMTP_USER")
@@ -280,6 +463,40 @@ def send_email(to_email, verification_code):
 
 @app.route('/api/verify', methods=['POST'])
 def verify_code():
+    """
+    Verify Email Verification Code
+    ---
+    tags:
+          - Authentication
+
+    description: |
+        Verifies the user's email address by checking the provided verification code
+        against the one stored in the database. If the code matches, the user's account is
+        marked as verified.
+
+    parameters:
+      - name: email
+        in: body
+        required: true
+        description: The email address of the user requesting verification.
+        schema:
+          type: string
+      - name: verification_code
+        in: body
+        required: true
+        description: The verification code sent to the user's email.
+        schema:
+          type: string
+
+    responses:
+      200:
+        description: Email successfully verified.
+      400:
+        description: Invalid or missing verification code.
+      500:
+        description: Database connection or server error.
+
+    """
     data = request.get_json()
 
     email = data.get('email')
@@ -314,28 +531,32 @@ def verify_code():
         cursor.close()
         conn.close()
 
+
 # Strava part of api
 
-STRAVA_CLIENT_ID = os.getenv("STRAVA_CLIENT_ID")
-STRAVA_REDIRECT_URI = os.getenv("STRAVA_REDIRECT_URI")
-STRAVA_CLIENT_SECRET = os.getenv("STRAVA_CLIENT_SECRET")
+STRAVA_CLIENT_ID = 117855 #os.getenv("STRAVA_CLIENT_ID")
+STRAVA_REDIRECT_URI = "https://4ede-178-148-58-77.ngrok-free.app"
+
+STRAVA_CALLBACK_PATH = "/api/strava/callback"  # Append this dynamically
+STRAVA_CLIENT_SECRET = "b94ac73033399f6ac146a91f1a755a2678909271" #os.getenv("STRAVA_CLIENT_SECRET")
+
 
 @app.route('/api/strava/auth', methods=['GET'])
 def strava_auth():
     """
     Redirects the user to Strava's authorization page.
     """
-
-
-
+    # URL encode the redirect URI to ensure special characters are handled properly
+    redirect_uri = f"{STRAVA_REDIRECT_URI}{STRAVA_CALLBACK_PATH}"
     auth_url = (
         f"https://www.strava.com/oauth/authorize"
         f"?client_id={STRAVA_CLIENT_ID}"
         f"&response_type=code"
-        f"&redirect_uri={STRAVA_REDIRECT_URI}"
+        f"&redirect_uri={redirect_uri}"  # No path appended
         f"&scope=read,activity:read_all"
     )
-    return jsonify({"auth_url": auth_url})
+    return redirect(auth_url)
+
 
 @app.route('/api/strava/callback', methods=['GET'])
 def strava_callback():
@@ -370,7 +591,7 @@ def strava_callback():
     cursor = conn.cursor(dictionary=True)
     try:
         cursor.execute(
-            "UPDATE users SET strava_access_token = %s, strava_refresh_token = %s, strava_token_expires_at = %s WHERE id = %s",
+            "UPDATE users SET strava_access_token = %s, strava_refresh_token = %s, strava_token_expires_at = %s WHERE user_id = %s",
             (access_token, refresh_token, expires_at, user_id)
         )
         conn.commit()
@@ -380,69 +601,87 @@ def strava_callback():
         cursor.close()
         conn.close()
 
-    return jsonify({"success": True, "message": "Strava connected successfully."})
+        # Redirect with a custom scheme
+        return jsonify({
+            "success": True,
+            "message": "Strava connected successfully.",
+            "redirect_url": f"callback://home?code={code}"
+        })
 
-@app.route('/api/strava/activities', methods=['GET'])
-def get_strava_activities():
+@app.route('/', methods=['GET'])
+def base_redirect():
     """
-    Fetches the user's activities from Strava.
+    Handle Strava callback when redirected to base URL without a path.
     """
-    user_id = 1  # Replace this with the authenticated user's ID
+    code = request.args.get('code')
+    if not code:
+        return jsonify({"success": False, "message": "Authorization code is missing."}), 400
 
-    # Retrieve the user's tokens from the database
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-    try:
-        cursor.execute("SELECT strava_access_token, strava_refresh_token, strava_token_expires_at FROM users WHERE id = %s", (user_id,))
-        user = cursor.fetchone()
-        if not user:
-            return jsonify({"success": False, "message": "User not found."}), 404
+    # Handle the callback logic here, e.g., exchange code for tokens
+    return strava_callback()  # Call your existing callback logic
 
-        access_token = user["strava_access_token"]
-        refresh_token = user["strava_refresh_token"]
-        expires_at = user["strava_token_expires_at"]
+# @app.route('/api/strava/activities', methods=['GET'])
+# def get_strava_activities():
+#     """
+#     Fetches the user's activities from Strava.
+#     """
+#     user_id = 1  # Replace this with the authenticated user's ID
+#
+#     # Retrieve the user's tokens from the database
+#     conn = get_db_connection()
+#     cursor = conn.cursor(dictionary=True)
+#     try:
+#         cursor.execute("SELECT strava_access_token, strava_refresh_token, strava_token_expires_at FROM users WHERE id = %s", (user_id,))
+#         user = cursor.fetchone()
+#         if not user:
+#             return jsonify({"success": False, "message": "User not found."}), 404
+#
+#         access_token = user["strava_access_token"]
+#         refresh_token = user["strava_refresh_token"]
+#         expires_at = user["strava_token_expires_at"]
+#
+#         # Refresh the access token if it has expired
+#         if time.time() > expires_at:
+#             refresh_url = "https://www.strava.com/oauth/token"
+#             payload = {
+#                 "client_id": STRAVA_CLIENT_ID,
+#                 "client_secret": STRAVA_CLIENT_SECRET,
+#                 "refresh_token": refresh_token,
+#                 "grant_type": "refresh_token"
+#             }
+#             response = requests.post(refresh_url, data=payload)
+#             if response.status_code != 200:
+#                 return jsonify({"success": False, "message": "Failed to refresh access token."}), 500
+#
+#             tokens = response.json()
+#             access_token = tokens.get("access_token")
+#             refresh_token = tokens.get("refresh_token")
+#             expires_at = tokens.get("expires_at")
+#
+#             # Update tokens in the database
+#             cursor.execute(
+#                 "UPDATE users SET strava_access_token = %s, strava_refresh_token = %s, strava_token_expires_at = %s WHERE id = %s",
+#                 (access_token, refresh_token, expires_at, user_id)
+#             )
+#             conn.commit()
+#
+#         # Fetch activities from Strava
+#         activities_url = "https://www.strava.com/api/v3/athlete/activities"
+#         headers = {"Authorization": f"Bearer {access_token}"}
+#         response = requests.get(activities_url, headers=headers)
+#
+#         if response.status_code != 200:
+#             return jsonify({"success": False, "message": "Failed to fetch activities."}), 500
+#
+#         activities = response.json()
+#         return jsonify({"success": True, "activities": activities})
+#
+#     except Exception as e:
+#         return jsonify({"success": False, "message": f"Error: {e}"}), 500
+#     finally:
+#         cursor.close()
+#         conn.close()
 
-        # Refresh the access token if it has expired
-        if time.time() > expires_at:
-            refresh_url = "https://www.strava.com/oauth/token"
-            payload = {
-                "client_id": STRAVA_CLIENT_ID,
-                "client_secret": STRAVA_CLIENT_SECRET,
-                "refresh_token": refresh_token,
-                "grant_type": "refresh_token"
-            }
-            response = requests.post(refresh_url, data=payload)
-            if response.status_code != 200:
-                return jsonify({"success": False, "message": "Failed to refresh access token."}), 500
-
-            tokens = response.json()
-            access_token = tokens.get("access_token")
-            refresh_token = tokens.get("refresh_token")
-            expires_at = tokens.get("expires_at")
-
-            # Update tokens in the database
-            cursor.execute(
-                "UPDATE users SET strava_access_token = %s, strava_refresh_token = %s, strava_token_expires_at = %s WHERE id = %s",
-                (access_token, refresh_token, expires_at, user_id)
-            )
-            conn.commit()
-
-        # Fetch activities from Strava
-        activities_url = "https://www.strava.com/api/v3/athlete/activities"
-        headers = {"Authorization": f"Bearer {access_token}"}
-        response = requests.get(activities_url, headers=headers)
-
-        if response.status_code != 200:
-            return jsonify({"success": False, "message": "Failed to fetch activities."}), 500
-
-        activities = response.json()
-        return jsonify({"success": True, "activities": activities})
-
-    except Exception as e:
-        return jsonify({"success": False, "message": f"Error: {e}"}), 500
-    finally:
-        cursor.close()
-        conn.close()
 
 if __name__ == "__main__":
     app.run(debug=True, host='0.0.0.0', port=5001)
