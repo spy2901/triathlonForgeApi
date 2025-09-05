@@ -1,3 +1,5 @@
+import random
+
 from flask import Blueprint, request, jsonify
 from argon2 import PasswordHasher
 from app.utils.database import get_db_connection
@@ -6,6 +8,8 @@ from app.utils.email import send_email
 auth_bp = Blueprint('auth', __name__, url_prefix='/api')
 # Create an Argon2 PasswordHasher instance
 ph = PasswordHasher()
+
+
 #  login register functions
 @auth_bp.route('/login', methods=['POST'])
 def login():
@@ -82,15 +86,21 @@ def login():
                 ph.verify(stored_password_hash, password)
 
                 # If password matches
-                return jsonify({'success': True, 'message': 'Login successful!'})
+                return jsonify({'success': True, 'message': 'Login successful!', 'user': {
+                    'id': user['user_id'],
+                    'email': user['email'],
+                    'name': user['first_name'],
+                    'surname': user['last_name']
+                }}), 200
 
             except Exception as e:
                 # If password doesn't match
+                print(e)
                 return jsonify({'success': False, 'message': 'Invalid username or password.'}), 401
         else:
             return jsonify({'success': False, 'message': 'Invalid username.'}), 401
 
-    except Error as e:
+    except Exception as e:
         return jsonify({'success': False, 'message': f'Database query failed: {e}'}), 500
 
     finally:
@@ -98,7 +108,7 @@ def login():
         conn.close()
 
 
-@auth_bp.route('/api/register', methods=['POST'])
+@auth_bp.route('/register', methods=['POST'])
 def register():
     """
         User Registration
@@ -138,12 +148,6 @@ def register():
                 birth_year:
                   type: integer
                   example: 1985
-                strava_profile:
-                  type: string
-                  example: https://www.strava.com/athletes/12345
-                garmin_profile:
-                  type: string
-                  example: https://connect.garmin.com/profile/johndoe
         responses:
           200:
             description: Successful registration
@@ -222,7 +226,7 @@ def register():
               verification_code))
         conn.commit()
 
-        # Send the verification email (simple example)
+        # Send the verification email
         send_email(email, verification_code)
 
         return jsonify({'success': True, 'message': 'Registration successful. Please verify your email.'})
@@ -235,8 +239,7 @@ def register():
         conn.close()
 
 
-
-@auth_bp.route('/api/verify', methods=['POST'])
+@auth_bp.route('/verify', methods=['POST'])
 def verify_code():
     """
     Verify Email Verification Code

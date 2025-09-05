@@ -55,10 +55,12 @@ def send_email(to_email, verification_code):
       asynchronous operations.
     """
     SMTP_SERVER = os.getenv("SMTP_SERVER")
-    SMTP_PORT = os.getenv("SMTP_PORT")
+    SMTP_PORT = int(os.getenv("SMTP_PORT"))
     SMTP_USER = os.getenv("SMTP_USER")
     SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
 
+    if not all([SMTP_SERVER, SMTP_PORT, SMTP_USER, SMTP_PASSWORD]):
+        raise EnvironmentError("One or more SMTP environment variables are not set.")
     subject = "Verify Your Registration"
     # Define the HTML body with the verification code
     body = f"""
@@ -145,7 +147,7 @@ def send_email(to_email, verification_code):
     <body>
       <div class="container">
         <div class="header">
-          <img src="https://media.istockphoto.com/id/961624146/vector/triathlon-event-illustration.jpg?s=612x612&w=0&k=20&c=7uf1-wrSTDphrwxqvrskwNrhDTY56TDTeeeOGqA5BIc=" alt="Sport Logo">
+          <img src="https://triathlonforge.com/wp-content/uploads/2025/02/triathlonForge-Logo-v1-1.png" alt="Sport Logo">
           <h2>Verify Your Registration</h2>
         </div>
         <div class="content">
@@ -171,8 +173,12 @@ def send_email(to_email, verification_code):
     # Attach the HTML body to the email
     message.attach(MIMEText(body, 'html'))
 
-    with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
-        server.starttls()
-        server.login(SMTP_USER, SMTP_PASSWORD)
-        server.sendmail(SMTP_USER, to_email, message.as_string())
+    try:
+        with smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT) as server:
+            server.login(SMTP_USER, SMTP_PASSWORD)
+            result = server.sendmail(SMTP_USER, to_email, message.as_string())
+            server.set_debuglevel(1)
+    except Exception as e:
+        print(f"[EMAIL ERROR] {e}")
+        raise  # kako bi Flask uhvatio i vratio 500 sa detaljem
 
