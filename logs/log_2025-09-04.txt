@@ -1,0 +1,8 @@
+[2025-09-04 09:24:38] Request: GET /api/strava/activities
+[2025-09-04 09:25:05] Request: GET /api/strava/activities
+[2025-09-04 11:28:31] Request: GET /api/strava/activities
+[2025-09-04 11:49:35] Request: GET /api/strava/activities
+[2025-09-04 12:01:14] Request: GET /api/strava/activities
+[2025-09-04 12:04:46] Request: GET /api/strava/activities
+[2025-09-04 12:07:16] Request: GET /api/strava/activities
+[2025-09-04 12:37:10] Request: GET /api/strava/activities

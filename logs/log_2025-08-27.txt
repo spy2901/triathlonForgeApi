@@ -1,0 +1,2 @@
+[2025-08-27 18:51:24] Request: POST /api/strava/get_activities 
+[2025-08-27 18:51:27] Request: POST /api/strava/get_activity 

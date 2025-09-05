@@ -1,0 +1,9 @@
+Flask==3.0.0
+Flask-Cors==5.0.0
+Flask-RESTful==0.3.10
+mysql-connector-python==8.3.0
+gunicorn==21.2.0
+python-dotenv==1.0.1
+requests==2.31.0
+flasgger==0.9.7.1
+argon2-cffi==23.1.0
